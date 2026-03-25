@@ -1,4 +1,4 @@
-﻿name: Build Go binaries
+name: Build Go Binaries & Release
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -13,11 +13,15 @@ permissions:
   contents: write
 
 jobs:
+  # ──────────────────────────────────────────────
+  # 1. Windows amd64
+  # ──────────────────────────────────────────────
   build-windows-amd64:
     runs-on: ubuntu-latest
     steps:
       - name: Set version
         run: echo "VERSION=${GITHUB_REF_NAME//\//-}" >> $GITHUB_ENV
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -28,31 +32,48 @@ jobs:
       - name: Verify asr_server submodule
         run: |
           if [ ! -f asr_server/server/setup.go ]; then
-            echo "::error::asr_server 子模块未拉取，binary 构建需要 voice_server" 
+            echo "::error::asr_server 子模块未拉取，binary 构建需要 voice_server"
             ls -la asr_server 2>/dev/null || true
             exit 1
           fi
 
-      - name: Build Windows package with Docker
-        run: |
-          docker build --target builder -f docker/Dockerfile.windows -t xiaozhi-build-windows .
-          docker create --name xiaozhi_windows xiaozhi-build-windows
-          docker cp xiaozhi_windows:/out ./out
-          docker rm xiaozhi_windows
-          rm -rf "out/xiaozhi_server-windows-amd64-${VERSION}"
-          mv out/windows-amd64 "out/xiaozhi_server-windows-amd64-${VERSION}"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Upload Windows package
+      - name: Build Windows package
+        run: |
+          # 使用 --output 直接将 scratch 导出层的文件提取到本地，无需 docker create/cp
+          docker build \
+            --target export \
+            --output type=local,dest=./out \
+            -f docker/Dockerfile.windows \
+            .
+
+      - name: Rename output directory
+        run: |
+          INNER=$(ls out/windows-amd64/)
+          mv "out/windows-amd64/${INNER}" "out/windows-amd64/xiaozhi_server-windows-amd64-${VERSION}"
+
+      - name: Pack zip
+        run: |
+          cd out/windows-amd64
+          zip -r "../../xiaozhi_server-windows-amd64-${VERSION}.zip" "xiaozhi_server-windows-amd64-${VERSION}"
+
+      - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: xiaozhi_server-windows-amd64-${{ env.VERSION }}
-          path: out/xiaozhi_server-windows-amd64-${{ env.VERSION }}
+          path: xiaozhi_server-windows-amd64-${{ env.VERSION }}.zip
 
+  # ──────────────────────────────────────────────
+  # 2. Linux amd64
+  # ──────────────────────────────────────────────
   build-linux-amd64:
     runs-on: ubuntu-latest
     steps:
       - name: Set version
         run: echo "VERSION=${GITHUB_REF_NAME//\//-}" >> $GITHUB_ENV
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -63,26 +84,41 @@ jobs:
       - name: Verify asr_server submodule
         run: |
           if [ ! -f asr_server/server/setup.go ]; then
-            echo "::error::asr_server 子模块未拉取，binary 构建需要 voice_server" 
+            echo "::error::asr_server 子模块未拉取，binary 构建需要 voice_server"
             ls -la asr_server 2>/dev/null || true
             exit 1
           fi
 
-      - name: Build Linux package with Docker
-        run: |
-          docker build --target builder -f docker/Dockerfile.linux -t xiaozhi-build-linux .
-          docker create --name xiaozhi_linux xiaozhi-build-linux
-          docker cp xiaozhi_linux:/out ./out
-          docker rm xiaozhi_linux
-          rm -rf "out/xiaozhi_server-linux-amd64-${VERSION}"
-          mv out/linux-amd64 "out/xiaozhi_server-linux-amd64-${VERSION}"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Upload Linux package
+      - name: Build Linux package
+        run: |
+          docker build \
+            --target export \
+            --output type=local,dest=./out \
+            -f docker/Dockerfile.linux \
+            .
+
+      - name: Rename output directory
+        run: |
+          INNER=$(ls out/linux-amd64/)
+          mv "out/linux-amd64/${INNER}" "out/linux-amd64/xiaozhi_server-linux-amd64-${VERSION}"
+
+      - name: Pack zip
+        run: |
+          cd out/linux-amd64
+          zip -r "../../xiaozhi_server-linux-amd64-${VERSION}.zip" "xiaozhi_server-linux-amd64-${VERSION}"
+
+      - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
         with:
           name: xiaozhi_server-linux-amd64-${{ env.VERSION }}
-          path: out/xiaozhi_server-linux-amd64-${{ env.VERSION }}
+          path: xiaozhi_server-linux-amd64-${{ env.VERSION }}.zip
 
+  # ──────────────────────────────────────────────
+  # 3. macOS (amd64 + arm64)
+  # ──────────────────────────────────────────────
   build-macos:
     strategy:
       matrix:
@@ -151,7 +187,8 @@ jobs:
             exit 1
           fi
           SHERPA_ONNX_GO_MACOS_VERSION="${SHERPA_ONNX_GO_VERSION#v}"
-          curl -L "https://github.com/k2-fsa/sherpa-onnx-go-macos/archive/refs/tags/v${SHERPA_ONNX_GO_MACOS_VERSION}.tar.gz" -o /tmp/sherpa-onnx-go-macos.tar.gz
+          curl -L "https://github.com/k2-fsa/sherpa-onnx-go-macos/archive/refs/tags/v${SHERPA_ONNX_GO_MACOS_VERSION}.tar.gz" \
+            -o /tmp/sherpa-onnx-go-macos.tar.gz
           tar -xzf /tmp/sherpa-onnx-go-macos.tar.gz -C /tmp
           SHERPA_DIR="/tmp/sherpa-onnx-go-macos-${SHERPA_ONNX_GO_MACOS_VERSION}"
           if [ "${{ matrix.arch }}" = "amd64" ]; then
@@ -179,7 +216,7 @@ jobs:
       - name: Pack macOS release
         run: |
           ARCH="${{ matrix.arch }}"
-          PACK_DIR="out/macos-${ARCH}/xiaozhi_server-macos-${ARCH}"
+          PACK_DIR="out/macos-${ARCH}/xiaozhi_server-macos-${ARCH}-${VERSION}"
           mkdir -p "$PACK_DIR/ten-vad/lib/macOS" "$PACK_DIR/logs"
 
           cp xiaozhi_server "$PACK_DIR/"
@@ -188,22 +225,24 @@ jobs:
           cp -r build/common/models build/common/data "$PACK_DIR/"
           rm -f "$PACK_DIR/data/xiaozhi.db"
           cp -R lib/ten-vad/lib/macOS/ten_vad.framework "$PACK_DIR/ten-vad/lib/macOS/"
-          # Copy all sherpa dylibs, including versioned files like libonnxruntime.1.17.1.dylib.
           cp "$SHERPA_LIB_DIR"/*.dylib "$PACK_DIR/ten-vad/lib/macOS/"
           chmod +x "$PACK_DIR/xiaozhi_server"
           chmod +x ./build/macos/fix_rpath.sh
           ./build/macos/fix_rpath.sh "$PACK_DIR/xiaozhi_server"
           otool -L "$PACK_DIR/xiaozhi_server" | grep -E "libonnxruntime|libsherpa-onnx" || true
 
-          rm -rf "out/xiaozhi_server-macos-${ARCH}-${VERSION}"
-          mv "out/macos-${ARCH}" "out/xiaozhi_server-macos-${ARCH}-${VERSION}"
+          cd "out/macos-${ARCH}"
+          zip -r "../../xiaozhi_server-macos-${ARCH}-${VERSION}.zip" "xiaozhi_server-macos-${ARCH}-${VERSION}"
 
-      - name: Upload macOS package
+      - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: xiaozhi_server-macos-${{ matrix.arch }}-${{ env.VERSION }}
-          path: out/xiaozhi_server-macos-${{ matrix.arch }}-${{ env.VERSION }}
+          path: xiaozhi_server-macos-${{ matrix.arch }}-${{ env.VERSION }}.zip
 
+  # ──────────────────────────────────────────────
+  # 4. 创建 GitHub Release（仅在推送 tag 时）
+  # ──────────────────────────────────────────────
   release:
     needs:
       - build-windows-amd64
@@ -214,37 +253,14 @@ jobs:
     steps:
       - name: Set version
         run: echo "VERSION=${GITHUB_REF_NAME//\//-}" >> $GITHUB_ENV
-      - name: Download Windows package
+
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          name: xiaozhi_server-windows-amd64-${{ env.VERSION }}
-          path: release/xiaozhi_server-windows-amd64-${{ env.VERSION }}
+          path: release/
 
-      - name: Download Linux package
-        uses: actions/download-artifact@v4
-        with:
-          name: xiaozhi_server-linux-amd64-${{ env.VERSION }}
-          path: release/xiaozhi_server-linux-amd64-${{ env.VERSION }}
-
-      - name: Download macOS amd64 package
-        uses: actions/download-artifact@v4
-        with:
-          name: xiaozhi_server-macos-amd64-${{ env.VERSION }}
-          path: release/xiaozhi_server-macos-amd64-${{ env.VERSION }}
-
-      - name: Download macOS arm64 package
-        uses: actions/download-artifact@v4
-        with:
-          name: xiaozhi_server-macos-arm64-${{ env.VERSION }}
-          path: release/xiaozhi_server-macos-arm64-${{ env.VERSION }}
-
-      - name: Pack release zip
-        run: |
-          cd release
-          zip -r "xiaozhi_server-windows-amd64-${VERSION}.zip" "xiaozhi_server-windows-amd64-${VERSION}"
-          zip -r "xiaozhi_server-linux-amd64-${VERSION}.zip" "xiaozhi_server-linux-amd64-${VERSION}"
-          zip -r "xiaozhi_server-macos-amd64-${VERSION}.zip" "xiaozhi_server-macos-amd64-${VERSION}"
-          zip -r "xiaozhi_server-macos-arm64-${VERSION}.zip" "xiaozhi_server-macos-arm64-${VERSION}"
+      - name: List release assets
+        run: find release/ -type f | sort
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -253,10 +269,11 @@ jobs:
           name: ${{ github.ref_name }}
           draft: false
           prerelease: false
+          generate_release_notes: true
           files: |
-            release/xiaozhi_server-windows-amd64-${{ env.VERSION }}.zip
-            release/xiaozhi_server-linux-amd64-${{ env.VERSION }}.zip
-            release/xiaozhi_server-macos-amd64-${{ env.VERSION }}.zip
-            release/xiaozhi_server-macos-arm64-${{ env.VERSION }}.zip
+            release/xiaozhi_server-windows-amd64-${{ env.VERSION }}/*.zip
+            release/xiaozhi_server-linux-amd64-${{ env.VERSION }}/*.zip
+            release/xiaozhi_server-macos-amd64-${{ env.VERSION }}/*.zip
+            release/xiaozhi_server-macos-arm64-${{ env.VERSION }}/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
