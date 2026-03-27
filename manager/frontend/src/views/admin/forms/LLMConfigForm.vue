@@ -98,18 +98,6 @@ const isDify = computed(() => props.model?.type === 'dify')
 const isCoze = computed(() => props.model?.type === 'coze')
 const showBaseURL = computed(() => true)
 
-watch(() => props.model?.provider, (value) => {
-  if (!value || !props.model) {
-    return
-  }
-  if (providerTypeMap[value]) {
-    props.model.type = providerTypeMap[value]
-  }
-  if (quickUrls[value]) {
-    props.model.base_url = quickUrls[value]
-  }
-}, { immediate: true })
-
 watch(() => props.model?.type, (value) => {
   if (!value || !props.model) {
     return
@@ -135,7 +123,7 @@ watch(() => props.model?.type, (value) => {
       props.model.connector_id = '1024'
     }
   }
-}, { immediate: true })
+})
 
 function onProviderChange(value) {
   if (!value || !props.model) {
@@ -153,11 +141,17 @@ function onTypeChange(value) {
   if (!props.model || !value) {
     return
   }
-  if (value === 'dify' && !props.model.provider) {
+  if (value === 'dify') {
     props.model.provider = 'dify'
+    if (!props.model.base_url) {
+      props.model.base_url = quickUrls.dify
+    }
   }
-  if (value === 'coze' && !props.model.provider) {
+  if (value === 'coze') {
     props.model.provider = 'coze'
+    if (!props.model.base_url) {
+      props.model.base_url = 'https://api.coze.com'
+    }
   }
   if (value === 'openai' && !props.model.base_url) {
     props.model.base_url = quickUrls.openai
