@@ -48,5 +48,7 @@ func isExpectedCancellationError(err error) bool {
 		return true
 	}
 	errMsg := err.Error()
-	return strings.Contains(errMsg, "context canceled") || strings.Contains(errMsg, "上下文已取消")
+	return strings.Contains(errMsg, "context canceled") ||
+		strings.Contains(errMsg, "上下文已取消") ||
+		strings.Contains(errMsg, "connection is closed")
 }

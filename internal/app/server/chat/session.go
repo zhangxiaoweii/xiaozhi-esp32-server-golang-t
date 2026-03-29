@@ -395,6 +395,7 @@ func (c *ChatSession) InitAsrLlmTts() error {
 
 func (c *ChatSession) CmdMessageLoop(ctx context.Context) {
 	recvFailCount := 0
+	var lastRecvErr error
 	for {
 		select {
 		case <-ctx.Done():
@@ -404,7 +405,7 @@ func (c *ChatSession) CmdMessageLoop(ctx context.Context) {
 		}
 
 		if recvFailCount > 3 {
-			log.Errorf("recv cmd timeout: %v", recvFailCount)
+			log.Errorf("设备 %s recvCmd 连续失败超过阈值, count=%d, last_err=%v", c.clientState.DeviceID, recvFailCount, lastRecvErr)
 			return
 		}
 
@@ -413,7 +414,8 @@ func (c *ChatSession) CmdMessageLoop(ctx context.Context) {
 			if isExpectedCancellationError(err) {
 				return
 			}
-			log.Errorf("recv cmd error: %v", err)
+			lastRecvErr = err
+			log.Errorf("设备 %s recvCmd error: %v", c.clientState.DeviceID, err)
 			recvFailCount = recvFailCount + 1
 			continue
 		}
@@ -442,7 +444,7 @@ func (c *ChatSession) AudioMessageLoop(ctx context.Context) {
 			if isExpectedCancellationError(err) {
 				return
 			}
-			log.Errorf("recv audio error: %v", err)
+			log.Errorf("设备 %s recvAudio error: %v", c.clientState.DeviceID, err)
 			return
 		}
 		if message == nil {
