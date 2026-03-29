@@ -1070,6 +1070,10 @@ func (l *LLMManager) DoLLmRequest(ctx context.Context, userMessage *schema.Messa
 		// 同步处理：资源会在 handleLLMWithContextAndTools 的 defer 中自动释放
 		_, err := l.HandleLLMResponseChannelSync(ctx, userMessage, responseSentences, einoTools)
 		if err != nil {
+			if isExpectedCancellationError(err) {
+				log.Debugf("LLM响应处理已取消, seesionID: %s, error: %v", l.clientState.SessionID, err)
+				return nil
+			}
 			log.Errorf("处理 LLM 响应失败, seesionID: %s, error: %v", l.clientState.SessionID, err)
 			return err
 		}
@@ -1077,6 +1081,10 @@ func (l *LLMManager) DoLLmRequest(ctx context.Context, userMessage *schema.Messa
 		// 异步处理：资源会在 handleLLMWithContextAndTools 的 defer 中自动释放
 		err = l.HandleLLMResponseChannelAsync(ctx, userMessage, responseSentences)
 		if err != nil {
+			if isExpectedCancellationError(err) {
+				log.Debugf("LLM响应处理已取消, seesionID: %s, error: %v", l.clientState.SessionID, err)
+				return nil
+			}
 			log.Errorf("处理 LLM 响应失败, seesionID: %s, error: %v", l.clientState.SessionID, err)
 		}
 	}

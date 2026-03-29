@@ -398,7 +398,7 @@ func (c *ChatSession) CmdMessageLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Infof("设备 %s recvCmd context cancel", c.clientState.DeviceID)
+			log.Debugf("设备 %s recvCmd context cancel", c.clientState.DeviceID)
 			return
 		default:
 		}
@@ -410,6 +410,9 @@ func (c *ChatSession) CmdMessageLoop(ctx context.Context) {
 
 		message, err := c.serverTransport.RecvCmd(ctx, 120)
 		if err != nil {
+			if isExpectedCancellationError(err) {
+				return
+			}
 			log.Errorf("recv cmd error: %v", err)
 			recvFailCount = recvFailCount + 1
 			continue
@@ -430,12 +433,15 @@ func (c *ChatSession) AudioMessageLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Debugf("设备 %s recvCmd context cancel", c.clientState.DeviceID)
+			log.Debugf("设备 %s recvAudio context cancel", c.clientState.DeviceID)
 			return
 		default:
 		}
 		message, err := c.serverTransport.RecvAudio(ctx, 600)
 		if err != nil {
+			if isExpectedCancellationError(err) {
+				return
+			}
 			log.Errorf("recv audio error: %v", err)
 			return
 		}
