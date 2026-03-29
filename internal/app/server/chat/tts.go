@@ -162,6 +162,7 @@ func (t *TTSManager) runSenderLoop(ctx context.Context) {
 		// 旧代际元素会被下方 generation 检查自动跳过。无条件 drain 会误删在
 		// interrupt 与 drain 之间入队的当前代际元素（如 TtsStart），导致设备
 		// 收不到 tts start 从而不播放音频。
+		t.drainSessionAudioQueue()
 		t.drainDelayedSentenceReadyQueue()
 		totalFrames = 0
 		needReportFirstFrame = false
