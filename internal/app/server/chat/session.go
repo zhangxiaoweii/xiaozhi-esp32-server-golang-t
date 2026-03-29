@@ -1478,6 +1478,14 @@ func (s *ChatSession) actionDoChat(ctx context.Context, text string, speakerResu
 		Role:    schema.User,
 		Content: text,
 	}
+	// detect 直达/注入文本等入口不会经过 ASR 的 onMessageSave，
+	// 在真正发起 LLM 前补齐当前轮 user 到会话内存，供工具回填后的二次请求复用。
+	lastMessages := s.clientState.GetMessages(1)
+	if len(lastMessages) == 0 || lastMessages[len(lastMessages)-1] == nil ||
+		lastMessages[len(lastMessages)-1].Role != schema.User ||
+		lastMessages[len(lastMessages)-1].Content != userMessage.Content {
+		s.clientState.AddMessage(userMessage)
+	}
 
 	// 获取全局MCP工具列表
 	mcpTools, err := mcp.GetToolsByDeviceId(clientState.DeviceID, clientState.AgentID, clientState.DeviceConfig.MCPServiceNames)
