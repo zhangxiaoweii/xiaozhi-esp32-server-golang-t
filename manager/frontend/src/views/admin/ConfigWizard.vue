@@ -16,7 +16,7 @@
       <el-step title="OTA" description="服务地址" />
       <el-step title="VAD" description="语音活动检测" />
       <el-step title="ASR" description="语音识别" />
-      <el-step title="LLM" description="大语言模型" />
+      <el-step title="智能体" description="大语言模型" />
       <el-step title="TTS" description="语音合成" />
     </el-steps>
 
@@ -126,7 +126,7 @@
 
       <!-- Step 4: LLM -->
       <template v-if="currentStep === 3">
-        <div class="step-title">LLM 配置</div>
+        <div class="step-title">智能体配置</div>
         <LLMConfigForm
           ref="llmFormRef"
           :model="llmForm"
@@ -891,12 +891,10 @@ async function saveLlm() {
       const res = await api.post("/admin/llm-configs", payload);
       llmConfigId.value = res.data?.data?.id ?? null;
     }
-    ElMessage.success("LLM 配置已保存");
+    ElMessage.success("配置已保存");
     return true;
   } catch (e) {
-    ElMessage.error(
-      "LLM 保存失败: " + (e.response?.data?.message || e.message),
-    );
+    ElMessage.error("保存失败: " + (e.response?.data?.message || e.message));
     return false;
   }
 }
