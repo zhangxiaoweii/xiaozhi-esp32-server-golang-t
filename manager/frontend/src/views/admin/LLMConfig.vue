@@ -185,7 +185,7 @@ const formRef = ref();
 const form = reactive({
   name: "",
   config_id: "",
-  provider: "",
+  provider: "weknora",
   is_default: false,
   enabled: true,
   type: "weknora",
@@ -548,7 +548,7 @@ const resetForm = () => {
   editingConfig.value = null;
   form.name = "";
   form.config_id = "";
-  form.provider = "";
+  form.provider = "weknora";
   form.is_default = false;
   form.enabled = true;
   form.type = "weknora";

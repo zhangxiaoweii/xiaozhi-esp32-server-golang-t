@@ -184,7 +184,7 @@ const quickUrls = {
   siliconflow: "https://api.siliconflow.cn/v1",
   deepseek: "https://api.deepseek.com/v1",
   dify: "https://api.dify.ai/v1",
-  weknora: "http://192.168.200.2:8080",
+  weknora: "",
 };
 
 const props = defineProps({
@@ -317,9 +317,9 @@ watch(
 
     if (value === "weknora") {
       props.model.provider = "weknora";
-      if (!props.model.base_url) {
-        props.model.base_url = quickUrls.weknora;
-      }
+
+      props.model.base_url = quickUrls[value] || "";
+
       if (!props.model.model_name) {
         props.model.model_name = "weknora";
       }
@@ -331,12 +331,10 @@ function onProviderChange(value) {
   if (!value || !props.model) {
     return;
   }
-  if ([value]) {
+  if (providerTypeMap[value]) {
     props.model.type = providerTypeMap[value];
   }
-  if (quickUrls[value]) {
-    props.model.base_url = quickUrls[value];
-  }
+  props.model.base_url = quickUrls[value] || "";
 }
 
 function onTypeChange(value) {
